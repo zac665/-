@@ -18,26 +18,27 @@ class IntelligentGoddsApp : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             // 启用调试日志
             .logger(DebugLogger())
-            // 内存缓存配置
+            // 内存缓存配置 - 优化：增大缓存
             .memoryCachePolicy(CachePolicy.ENABLED)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.30) // 30%可用内存
+                    .maxSizePercent(0.35) // 优化：增加到35%
                     .strongReferencesEnabled(true) // 强引用，防止被GC回收
                     .build()
             }
-            // 磁盘缓存配置
+            // 磁盘缓存配置 - 优化：增大容量
             .diskCachePolicy(CachePolicy.ENABLED)
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(200 * 1024 * 1024) // 200MB
+                    .maxSizeBytes(250 * 1024 * 1024) // 优化：增加到250MB
                     .build()
             }
-            // 网络配置
+            // 网络配置 - 优化：更快显示
             .respectCacheHeaders(false) // 忽略缓存头，更激进缓存
             .crossfade(true)
-            .crossfade(200) // 200ms淡入动画
+            .crossfade(100) // 优化：减少到100ms
+            .allowHardware(true) // 优化：启用硬件加速
             .build()
     }
 }

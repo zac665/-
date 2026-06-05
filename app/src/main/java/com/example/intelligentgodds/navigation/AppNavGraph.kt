@@ -6,8 +6,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.example.intelligentgodds.ui.screens.FavoritesScreen
 import com.example.intelligentgodds.ui.screens.HomeScreen
 import com.example.intelligentgodds.ui.screens.ProductDetailScreen
+import com.example.intelligentgodds.ui.screens.SearchScreen
 import com.example.intelligentgodds.viewmodel.ProductViewModel
 
 @Composable
@@ -24,6 +26,36 @@ fun AppNavGraph(
                 viewModel = viewModel,
                 onProductClick = { productId ->
                     navController.navigate(Screen.ProductDetail.createRoute(productId))
+                },
+                onSearchClick = {
+                    navController.navigate(Screen.Search.route)
+                },
+                onFavoritesClick = {
+                    navController.navigate(Screen.Favorites.route)
+                }
+            )
+        }
+        
+        composable(Screen.Search.route) {
+            SearchScreen(
+                viewModel = viewModel,
+                onProductClick = { productId ->
+                    navController.navigate(Screen.ProductDetail.createRoute(productId))
+                },
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        composable(Screen.Favorites.route) {
+            FavoritesScreen(
+                viewModel = viewModel,
+                onProductClick = { productId ->
+                    navController.navigate(Screen.ProductDetail.createRoute(productId))
+                },
+                onBackClick = {
+                    navController.popBackStack()
                 }
             )
         }

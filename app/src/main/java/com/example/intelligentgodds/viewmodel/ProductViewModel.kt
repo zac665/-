@@ -41,16 +41,26 @@ class ProductViewModel : ViewModel() {
     private var cachedCategories: List<Category>? = null
     private val productDetailCache = mutableMapOf<Int, Product>()
     
+    // 分页配置
+    private val pageSize = 10 // 每页10个商品
+    private var currentPage = 0
+    private var allProducts: List<Product>? = null
+    private var hasMoreData = true
+    
+    // 搜索相关
+    private var searchKeyword: String = ""
+    private var filteredProducts: List<Product>? = null
+    
     /**
-     * 加载商品列表（带缓存）
+     * 加载商品列表（带缓存）- 分页优化版
      */
     fun loadProducts() {
         viewModelScope.launch {
             _productsState.value = UiState.Loading
             
-            // 如果有缓存，先显示缓存
+            // 如果有缓存，立即显示（0延迟）
             cachedProducts?.let {
-                android.util.Log.d("ProductViewModel", "使用缓存数据: ${it.size} 个商品")
+                android.util.Log.d("ProductViewModel", "⚡ 使用缓存数据: ${it.size} 个商品")
                 _productsState.value = UiState.Success(it)
                 return@launch
             }
@@ -59,9 +69,13 @@ class ProductViewModel : ViewModel() {
             when {
                 result.isSuccess -> {
                     val products = result.getOrNull() ?: emptyList()
-                    cachedProducts = products
-                    android.util.Log.d("ProductViewModel", "加载成功: ${products.size} 个商品")
-                    _productsState.value = UiState.Success(products)
+                    allProducts = products // 保存所有商品
+                    currentPage = 1
+                    val firstPage = products.take(pageSize) // 只取第一页
+                    cachedProducts = firstPage
+                    hasMoreData = products.size > pageSize
+                    android.util.Log.d("ProductViewModel", "✅ 加载成功: 第1页 ${firstPage.size} 个商品（共${products.size}个）")
+                    _productsState.value = UiState.Success(firstPage)
                 }
                 else -> {
                     _productsState.value = UiState.Error(result.exceptionOrNull()?.message ?: "未知错误")
@@ -71,7 +85,40 @@ class ProductViewModel : ViewModel() {
     }
     
     /**
-     * 随机刷新商品
+     * 加载更多商品（分页）- 修复版
+     */
+    fun loadMoreProducts() {
+        if (!hasMoreData || allProducts == null) {
+            android.util.Log.d("ProductViewModel", "📄 没有更多数据: hasMoreData=$hasMoreData, allProducts=${allProducts?.size}")
+            return
+        }
+        
+        viewModelScope.launch {
+            val nextPage = currentPage + 1
+            val startIndex = currentPage * pageSize
+            val endIndex = minOf(startIndex + pageSize, allProducts!!.size)
+            
+            if (startIndex >= allProducts!!.size) {
+                android.util.Log.d("ProductViewModel", "📄 已加载所有商品")
+                hasMoreData = false
+                return@launch
+            }
+            
+            val moreProducts = allProducts!!.subList(startIndex, endIndex)
+            val currentList = cachedProducts ?: emptyList()
+            val newList = currentList + moreProducts
+            
+            cachedProducts = newList
+            currentPage = nextPage
+            hasMoreData = endIndex < allProducts!!.size
+            
+            android.util.Log.d("ProductViewModel", "📄 加载更多: 第${nextPage}页, 起始:$startIndex, 结束:$endIndex, 加载${moreProducts.size}个, 当前总共${newList.size}个")
+            _productsState.value = UiState.Success(newList)
+        }
+    }
+    
+    /**
+     * 随机刷新商品 - 修复分页状态
      */
     fun refreshRandomProducts() {
         viewModelScope.launch {
@@ -81,7 +128,11 @@ class ProductViewModel : ViewModel() {
             when {
                 result.isSuccess -> {
                     val products = result.getOrNull() ?: emptyList()
+                    // 修复：重置分页状态
+                    allProducts = products
                     cachedProducts = products
+                    currentPage = 1
+                    hasMoreData = false // 随机刷新不分页
                     android.util.Log.d("ProductViewModel", "随机刷新成功: ${products.size} 个商品")
                     _productsState.value = UiState.Success(products)
                 }
@@ -150,6 +201,33 @@ class ProductViewModel : ViewModel() {
     }
     
     /**
+     * 预加载商品详情（提升用户体验）
+     */
+    fun preloadProductDetail(productId: Int) {
+        viewModelScope.launch {
+            // 如果已经缓存，不重复加载
+            if (productDetailCache.containsKey(productId)) {
+                return@launch
+            }
+            
+            val result = repository.getProductById(productId)
+            if (result.isSuccess) {
+                val product = result.getOrNull()!!
+                productDetailCache[productId] = product
+                android.util.Log.d("ProductViewModel", "🔮 预加载成功: ${product.title}")
+            }
+        }
+    }
+    
+    /**
+     * 批量预加载（预加载前3个商品）
+     */
+    fun preloadNextProducts(productIds: List<Int>) {
+        productIds.take(3).forEach { productId ->
+            preloadProductDetail(productId)
+        }
+    }
+    /**
      * 切换收藏状态
      */
     fun toggleFavorite(productId: Int) {
@@ -160,6 +238,53 @@ class ProductViewModel : ViewModel() {
             currentFavorites.add(productId)
         }
         _favoriteIds.value = currentFavorites
+        android.util.Log.d("ProductViewModel", "❤️ 收藏状态变更: $productId, 当前收藏数: ${currentFavorites.size}")
+    }
+    
+    /**
+     * 获取收藏的商品列表
+     */
+    fun getFavoriteProducts(): List<Product> {
+        val allProducts = cachedProducts ?: LocalDataSource.getLocalProducts()
+        return allProducts.filter { _favoriteIds.value.contains(it.id) }
+    }
+    
+    /**
+     * 搜索商品（支持标题、描述、分类）
+     */
+    fun searchProducts(keyword: String) {
+        viewModelScope.launch {
+            searchKeyword = keyword.trim()
+            
+            if (searchKeyword.isEmpty()) {
+                // 如果搜索词为空，显示所有商品
+                loadProducts()
+                return@launch
+            }
+            
+            _productsState.value = UiState.Loading
+            
+            val allProducts = allProducts ?: cachedProducts ?: LocalDataSource.getLocalProducts()
+            
+            // 在标题、描述、分类中搜索
+            filteredProducts = allProducts.filter { product ->
+                product.title.contains(searchKeyword, ignoreCase = true) ||
+                product.description.contains(searchKeyword, ignoreCase = true) ||
+                product.category.contains(searchKeyword, ignoreCase = true)
+            }
+            
+            android.util.Log.d("ProductViewModel", "🔍 搜索 '$searchKeyword': 找到 ${filteredProducts!!.size} 个结果")
+            _productsState.value = UiState.Success(filteredProducts!!)
+        }
+    }
+    
+    /**
+     * 清除搜索，显示全部商品
+     */
+    fun clearSearch() {
+        searchKeyword = ""
+        filteredProducts = null
+        loadProducts()
     }
     
     /**

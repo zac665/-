@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +28,9 @@ import com.example.intelligentgodds.viewmodel.UiState
 @Composable
 fun HomeScreen(
     viewModel: ProductViewModel,
-    onProductClick: (Int) -> Unit
+    onProductClick: (Int) -> Unit,
+    onSearchClick: () -> Unit = {},
+    onFavoritesClick: () -> Unit = {}
 ) {
     val productsState by viewModel.productsState.collectAsState()
     val favoriteIds by viewModel.favoriteIds.collectAsState()
@@ -39,8 +42,14 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("商品推荐") },
+                title = { Text("智能商品推荐") },
                 actions = {
+                    IconButton(onClick = onSearchClick) {
+                        Icon(Icons.Default.Search, contentDescription = "搜索")
+                    }
+                    IconButton(onClick = onFavoritesClick) {
+                        Icon(Icons.Default.Favorite, contentDescription = "收藏")
+                    }
                     IconButton(onClick = { viewModel.refreshRandomProducts() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "随机刷新")
                     }
@@ -83,6 +92,30 @@ fun HomeScreen(
                             onFavoriteClick = { viewModel.toggleFavorite(product.id) },
                             onClick = { onProductClick(product.id) }
                         )
+                    }
+                    
+                    // 分页加载指示器
+                    if (products.size < 70) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // 修复：将LaunchedEffect移到LazyColumn外面，避免无限循环
+                LaunchedEffect(products.size) {
+                    if (products.size < 70) {
+                        viewModel.loadMoreProducts()
                     }
                 }
             }
@@ -127,49 +160,57 @@ fun ProductCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            // 图片和收藏按钮
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(product.image)
-                        .size(200, 200)
-                        .crossfade(200)
+                        .size(150, 150)
+                        .crossfade(150)
                         .build(),
                     contentDescription = product.title,
                     modifier = Modifier
-                        .width(100.dp)
-                        .height(100.dp),
+                        .width(120.dp)
+                        .height(120.dp)
+                        .align(Alignment.CenterStart),
                     placeholder = painterResource(R.drawable.ic_image_placeholder),
                     error = painterResource(R.drawable.ic_image_placeholder)
                 )
                 
-                IconButton(onClick = onFavoriteClick) {
+                IconButton(
+                    onClick = onFavoriteClick,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                        tint = if (isFavorite) MaterialTheme.colorScheme.error else LocalContentColor.current
+                        tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
             }
             
             Spacer(modifier = Modifier.height(12.dp))
             
+            // 商品标题
             Text(
                 text = product.title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                maxLines = 2
+                maxLines = 2,
+                color = MaterialTheme.colorScheme.onSurface
             )
             
             Spacer(modifier = Modifier.height(8.dp))
             
+            // 价格和评分 - 美化版
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -177,25 +218,49 @@ fun ProductCard(
             ) {
                 Text(
                     text = "¥${product.price}",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.ExtraBold
                 )
                 
-                Text(
-                    text = "★ ${product.rating.rate} (${product.rating.count})",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "★",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text(
+                        text = "${product.rating.rate}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = " (${product.rating.count})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             
-            Text(
-                text = product.category,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // 分类标签 - 美化版
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.wrapContentWidth()
+            ) {
+                Text(
+                    text = product.category,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }

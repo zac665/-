@@ -15,9 +15,10 @@ object RetrofitClient {
     
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor)
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS) // 优化：减少到5秒，快速失败
+        .readTimeout(5, TimeUnit.SECONDS)     // 优化：减少到5秒
+        .writeTimeout(5, TimeUnit.SECONDS)    // 优化：减少到5秒
+        .retryOnConnectionFailure(true)       // 优化：启用自动重试
         .build()
     
     val apiService: ProductApiService by lazy {

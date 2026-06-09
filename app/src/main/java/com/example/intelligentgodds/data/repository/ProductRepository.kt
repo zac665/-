@@ -5,6 +5,7 @@ import com.example.intelligentgodds.data.model.Product
 import com.example.intelligentgodds.data.network.BaiduTranslateService
 import com.example.intelligentgodds.data.network.RetrofitClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 
 class ProductRepository {
@@ -112,23 +113,24 @@ class ProductRepository {
     /**
      * 汉化商品数据 - 使用百度翻译API自动翻译
      * 公开方法,供ViewModel后台异步调用
+     * 优化: 真正并行翻译三个字段
      */
-    suspend fun localizeProduct(product: Product): Product {
+    suspend fun localizeProduct(product: Product): Product = withContext(Dispatchers.Default) {
         android.util.Log.d("ProductRepository", "🔄 开始翻译商品ID: ${product.id}")
         
-        // 并行翻译标题、描述和分类
-        val localizedTitle = translateService.translate(product.title)
-        val localizedDescription = translateService.translate(product.description)
-        val localizedCategory = translateService.translate(product.category)
+        // 优化: 使用async真正并行翻译三个字段
+        val localizedTitle = async { translateService.translate(product.title) }
+        val localizedDescription = async { translateService.translate(product.description) }
+        val localizedCategory = async { translateService.translate(product.category) }
         
         val localized = product.copy(
-            title = localizedTitle,
-            description = localizedDescription,
-            category = localizedCategory
+            title = localizedTitle.await(),
+            description = localizedDescription.await(),
+            category = localizedCategory.await()
         )
         
         android.util.Log.d("ProductRepository", "✅ 商品ID: ${product.id} 翻译完成")
-        return localized
+        localized
     }
     
     /**

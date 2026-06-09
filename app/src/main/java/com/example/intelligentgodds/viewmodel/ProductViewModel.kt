@@ -81,14 +81,32 @@ class ProductViewModel : ViewModel() {
                     
                     // 优化2: 后台异步翻译所有商品(不阻塞UI)
                     launch {
-                        android.util.Log.d("ProductViewModel", "🔄 开始后台翻译...")
-                        val translatedProducts = products.map { product ->
-                            repository.localizeProduct(product)
+                        try {
+                            android.util.Log.d("ProductViewModel", "🔄 开始后台翻译... 共${products.size}个商品")
+                            var translatedCount = 0
+                            val translatedProducts = products.map { product ->
+                                val translated = repository.localizeProduct(product)
+                                translatedCount++
+                                if (translatedCount % 10 == 0) {
+                                    android.util.Log.d("ProductViewModel", "📊 翻译进度: $translatedCount/${products.size}")
+                                }
+                                translated
+                            }
+                            
+                            android.util.Log.d("ProductViewModel", "✅ 所有商品翻译完成,准备更新UI...")
+                            
+                            // 重要: 更新所有数据源
+                            allProducts = translatedProducts
+                            cachedProducts = translatedProducts.take(pageSize)
+                            
+                            // 触发UI更新 - 使用新的列表对象
+                            _productsState.value = UiState.Success(translatedProducts.take(pageSize).toList())
+                            
+                            android.util.Log.d("ProductViewModel", "✅ 后台翻译完成,已更新UI - 第一个商品: ${translatedProducts.firstOrNull()?.title}")
+                        } catch (e: Exception) {
+                            android.util.Log.e("ProductViewModel", "❌ 后台翻译失败: ${e.message}", e)
+                            e.printStackTrace()
                         }
-                        allProducts = translatedProducts
-                        cachedProducts = translatedProducts.take(pageSize)
-                        _productsState.value = UiState.Success(cachedProducts!!)
-                        android.util.Log.d("ProductViewModel", "✅ 后台翻译完成")
                     }
                 }
                 else -> {
@@ -152,14 +170,26 @@ class ProductViewModel : ViewModel() {
                     
                     // 后台异步翻译
                     launch {
-                        android.util.Log.d("ProductViewModel", "🔄 开始后台翻译...")
-                        val translatedProducts = products.map { product ->
-                            repository.localizeProduct(product)
+                        try {
+                            android.util.Log.d("ProductViewModel", "🔄 开始后台翻译... 共${products.size}个商品")
+                            val translatedProducts = products.map { product ->
+                                repository.localizeProduct(product)
+                            }
+                            
+                            android.util.Log.d("ProductViewModel", "✅ 所有商品翻译完成,准备更新UI...")
+                            
+                            // 更新所有数据源
+                            allProducts = translatedProducts
+                            cachedProducts = translatedProducts
+                            
+                            // 触发UI更新
+                            _productsState.value = UiState.Success(translatedProducts.toList())
+                            
+                            android.util.Log.d("ProductViewModel", "✅ 后台翻译完成,已更新UI - 第一个商品: ${translatedProducts.firstOrNull()?.title}")
+                        } catch (e: Exception) {
+                            android.util.Log.e("ProductViewModel", "❌ 后台翻译失败: ${e.message}", e)
+                            e.printStackTrace()
                         }
-                        allProducts = translatedProducts
-                        cachedProducts = translatedProducts
-                        _productsState.value = UiState.Success(translatedProducts)
-                        android.util.Log.d("ProductViewModel", "✅ 后台翻译完成")
                     }
                 }
                 else -> {

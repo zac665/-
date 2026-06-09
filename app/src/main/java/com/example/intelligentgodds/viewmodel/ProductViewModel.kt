@@ -2,7 +2,6 @@ package com.example.intelligentgodds.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.intelligentgodds.data.local.LocalDataSource
 import com.example.intelligentgodds.data.model.Category
 import com.example.intelligentgodds.data.model.Product
 import com.example.intelligentgodds.data.repository.ProductRepository
@@ -245,7 +244,7 @@ class ProductViewModel : ViewModel() {
      * 获取收藏的商品列表
      */
     fun getFavoriteProducts(): List<Product> {
-        val allProducts = cachedProducts ?: LocalDataSource.getLocalProducts()
+        val allProducts = cachedProducts ?: emptyList()
         return allProducts.filter { _favoriteIds.value.contains(it.id) }
     }
     
@@ -264,7 +263,7 @@ class ProductViewModel : ViewModel() {
             
             _productsState.value = UiState.Loading
             
-            val allProducts = allProducts ?: cachedProducts ?: LocalDataSource.getLocalProducts()
+            val allProducts = allProducts ?: cachedProducts ?: emptyList()
             
             // 在标题、描述、分类中搜索
             filteredProducts = allProducts.filter { product ->

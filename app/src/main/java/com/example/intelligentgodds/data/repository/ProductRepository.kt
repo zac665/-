@@ -1,6 +1,5 @@
 package com.example.intelligentgodds.data.repository
 
-import com.example.intelligentgodds.data.local.LocalDataSource
 import com.example.intelligentgodds.data.model.Category
 import com.example.intelligentgodds.data.model.Product
 import com.example.intelligentgodds.data.network.RetrofitClient
@@ -23,14 +22,8 @@ class ProductRepository {
             val localizedProducts = response.map { localizeProduct(it) }
             Result.success(localizedProducts)
         } catch (e: Exception) {
-            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}, 使用本地数据降级")
-            // 网络失败时使用本地数据降级
-            try {
-                val products = LocalDataSource.getLocalProducts()
-                Result.success(products)
-            } catch (localError: Exception) {
-                Result.failure(localError)
-            }
+            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}")
+            Result.failure(e)
         }
     }
     
@@ -45,14 +38,8 @@ class ProductRepository {
             android.util.Log.d("ProductRepository", "成功获取 ${randomProducts.size} 个随机商品")
             Result.success(randomProducts)
         } catch (e: Exception) {
-            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}, 使用本地数据降级")
-            // 网络失败时使用本地数据降级
-            try {
-                val localProducts = LocalDataSource.getLocalProducts().shuffled().take(limit)
-                Result.success(localProducts)
-            } catch (localError: Exception) {
-                Result.failure(localError)
-            }
+            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}")
+            Result.failure(e)
         }
     }
     
@@ -66,18 +53,8 @@ class ProductRepository {
             val localizedProduct = localizeProduct(product)
             Result.success(localizedProduct)
         } catch (e: Exception) {
-            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}, 使用本地数据降级")
-            // 网络失败时使用本地数据降级
-            try {
-                val localProduct = LocalDataSource.getLocalProducts().find { it.id == id }
-                if (localProduct != null) {
-                    Result.success(localProduct)
-                } else {
-                    Result.failure(Exception("未找到商品"))
-                }
-            } catch (localError: Exception) {
-                Result.failure(localError)
-            }
+            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}")
+            Result.failure(e)
         }
     }
     
@@ -100,14 +77,8 @@ class ProductRepository {
             android.util.Log.d("ProductRepository", "成功获取 ${localizedCategories.size} 个中文分类")
             Result.success(localizedCategories)
         } catch (e: Exception) {
-            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}, 使用本地数据降级")
-            // 网络失败时使用本地数据降级
-            try {
-                val localCategories = LocalDataSource.getLocalCategories()
-                Result.success(localCategories)
-            } catch (localError: Exception) {
-                Result.failure(localError)
-            }
+            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}")
+            Result.failure(e)
         }
     }
     
@@ -127,15 +98,8 @@ class ProductRepository {
             val localizedProducts = products.map { localizeProduct(it) }
             Result.success(localizedProducts)
         } catch (e: Exception) {
-            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}, 使用本地数据降级")
-            // 网络失败时使用本地数据降级
-            try {
-                val localProducts = LocalDataSource.getLocalProducts()
-                    .filter { it.category == category }
-                Result.success(localProducts)
-            } catch (localError: Exception) {
-                Result.failure(localError)
-            }
+            android.util.Log.e("ProductRepository", "网络请求失败: ${e.message}")
+            Result.failure(e)
         }
     }
     

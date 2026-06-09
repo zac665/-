@@ -51,7 +51,8 @@ class ProductViewModel : ViewModel() {
     private var filteredProducts: List<Product>? = null
     
     /**
-     * 加载商品列表（带缓存）- 分页优化版
+     * 加载商品列表（带缓存）- 极速优化版
+     * 策略: 先显示英文数据,后台异步翻译
      */
     fun loadProducts() {
         viewModelScope.launch {
@@ -69,12 +70,26 @@ class ProductViewModel : ViewModel() {
                 result.isSuccess -> {
                     val products = result.getOrNull() ?: emptyList()
                     allProducts = products // 保存所有商品
+                    
+                    // 优化1: 立即显示第一页(英文),让用户看到内容
                     currentPage = 1
-                    val firstPage = products.take(pageSize) // 只取第一页
+                    val firstPage = products.take(pageSize)
                     cachedProducts = firstPage
                     hasMoreData = products.size > pageSize
-                    android.util.Log.d("ProductViewModel", "✅ 加载成功: 第1页 ${firstPage.size} 个商品（共${products.size}个）")
+                    android.util.Log.d("ProductViewModel", "⚡ 快速显示: 第1页 ${firstPage.size} 个商品")
                     _productsState.value = UiState.Success(firstPage)
+                    
+                    // 优化2: 后台异步翻译所有商品(不阻塞UI)
+                    launch {
+                        android.util.Log.d("ProductViewModel", "🔄 开始后台翻译...")
+                        val translatedProducts = products.map { product ->
+                            repository.localizeProduct(product)
+                        }
+                        allProducts = translatedProducts
+                        cachedProducts = translatedProducts.take(pageSize)
+                        _productsState.value = UiState.Success(cachedProducts!!)
+                        android.util.Log.d("ProductViewModel", "✅ 后台翻译完成")
+                    }
                 }
                 else -> {
                     _productsState.value = UiState.Error(result.exceptionOrNull()?.message ?: "未知错误")
@@ -117,7 +132,7 @@ class ProductViewModel : ViewModel() {
     }
     
     /**
-     * 随机刷新商品 - 修复分页状态
+     * 随机刷新商品 - 优化版(快速显示+后台翻译)
      */
     fun refreshRandomProducts() {
         viewModelScope.launch {
@@ -132,8 +147,20 @@ class ProductViewModel : ViewModel() {
                     cachedProducts = products
                     currentPage = 1
                     hasMoreData = false // 随机刷新不分页
-                    android.util.Log.d("ProductViewModel", "随机刷新成功: ${products.size} 个商品")
+                    android.util.Log.d("ProductViewModel", "⚡ 快速显示: ${products.size} 个商品")
                     _productsState.value = UiState.Success(products)
+                    
+                    // 后台异步翻译
+                    launch {
+                        android.util.Log.d("ProductViewModel", "🔄 开始后台翻译...")
+                        val translatedProducts = products.map { product ->
+                            repository.localizeProduct(product)
+                        }
+                        allProducts = translatedProducts
+                        cachedProducts = translatedProducts
+                        _productsState.value = UiState.Success(translatedProducts)
+                        android.util.Log.d("ProductViewModel", "✅ 后台翻译完成")
+                    }
                 }
                 else -> {
                     _productsState.value = UiState.Error(result.exceptionOrNull()?.message ?: "刷新失败")

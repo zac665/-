@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -70,7 +72,28 @@ fun HomeScreen(
             }
             is UiState.Success -> {
                 val products = (productsState as UiState.Success).data
+                val listState = rememberLazyListState()
+                var isLoadingMore by remember { mutableStateOf(false) }
+                
+                // 分页加载：监听滚动到底部（防止无限循环）
+                LaunchedEffect(listState) {
+                    snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+                        .collect { lastVisibleIndex ->
+                            if (lastVisibleIndex != null && 
+                                lastVisibleIndex >= products.size - 3 && 
+                                !isLoadingMore &&
+                                products.size < 194) { // DummyJSON总共有194个商品
+                                // 距离底部还有3个item时，加载更多
+                                android.util.Log.d("HomeScreen", "📄 触发加载更多: lastVisible=$lastVisibleIndex, size=${products.size}")
+                                isLoadingMore = true
+                                viewModel.loadMoreProducts()
+                                isLoadingMore = false
+                            }
+                        }
+                }
+                
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues),
@@ -109,13 +132,6 @@ fun HomeScreen(
                                 )
                             }
                         }
-                    }
-                }
-                
-                // 修复：将LaunchedEffect移到LazyColumn外面，避免无限循环
-                LaunchedEffect(products.size) {
-                    if (products.size < 70) {
-                        viewModel.loadMoreProducts()
                     }
                 }
             }

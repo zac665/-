@@ -7,7 +7,8 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    private const val BASE_URL = "https://fakestoreapi.com/"
+    // 使用 DummyJSON - 免费、稳定、专为电商测试设计的API
+    private const val BASE_URL = "https://dummyjson.com/"
     
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
